@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Container, TextField, Button, Typography, Box } from "@mui/material";
-import { AzureOpenAI } from "openai"; 
+import { Container, TextField, Button, Typography, Box, Checkbox } from "@mui/material";
+import { StyledButton, StyledBox, StyledForm, StyledMessageBox, UserMessage, BotMessage } from "./DemoUsuario.styles";
+
 
 const dummyClients = [
-  { id: 1, name: "Empresa 1" },
-  { id: 2, name: "Empresa 2" },
+  { id: 1, name: "Pousada Brisa do Mar", slug: "brisa-do-mar" },
+  { id: 2, name: "Pousada Vento Costeiro", slug: "vento-costeiro" },
 ];
 
 const DemoUsuario = () => {
@@ -13,46 +14,33 @@ const DemoUsuario = () => {
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState(1);
   const [clientData, setClientData] = useState(null);
+  const [debugMode, setDebugMode] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const userMessage = message;
     setMessage("");
 
-    try {
-      // TODO: Mover para o backend
-      const endpoint = process.env["AZURE_OPENAI_ENDPOINT"] || `https://${process.env.AZURE_OPENAI_SERVICE}.openai.azure.com/`;  
-      const apiKey = process.env["AZURE_OPENAI_API_KEY"] || `${process.env.AZURE_OPENAI_API_KEY}`;  
-      const apiVersion = `${process.env.AZURE_OPENAI_API_VERSION}`;  
-      const deployment = `${process.env.AZURE_OPENAI_DEPLOYMENT}`;
-      
-      const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment, dangerouslyAllowBrowser: true });  
-      
-      const result = await client.chat.completions.create({  
-        messages: [  
-          { role: "system", content: `Você é um assistente de IA da ${clientData.name}` }, 
-        ],  
-        max_tokens: 800,  
-        temperature: 0.7,  
-        top_p: 0.95,  
-        frequency_penalty: 0,  
-        presence_penalty: 0,  
-        stop: null  
+  fetch('http://localhost:3000/chat', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        debug: debugMode,
+        prompt: userMessage
+       }),
+  })
+      .then((response) => response.json())
+      .then((data) => {
+          setResponses((prev) => [
+              ...prev,
+              { user: userMessage, bot: data.bot },
+          ]);
       })
-      
-      for (const choice of result.choices) {  
-        setResponses((prev) => [  
-          ...prev,  
-          { user: userMessage, bot: choice.message.content }  
-        ]); 
-      } 
-    } catch (error) {
-      console.error(error);
-      setResponses((prev) => [
-        ...prev,
-        { user: userMessage, bot: "Desculpe, não consigo responder no momento"},
-      ]);
-    }
+      .catch((error) => {
+          console.error('Error:', error);
+      });      
   };
 
   useEffect(() => {
@@ -62,49 +50,73 @@ const DemoUsuario = () => {
   }, [selectedClient]);
 
   return (
-    <Container maxWidth="sm" >
+    <Container maxWidth="sm">
       <Typography variant="h5" marginTop="20px" gutterBottom>
         Selecione um cliente
       </Typography>
-      <Box sx={{ display: "flex", gap: 2 }}>
+      <StyledBox>
         {dummyClients.map((client) => (
-          <Button
+          <StyledButton
             key={client.id}
             variant={selectedClient === client.id ? "contained" : "outlined"}
             onClick={() => setSelectedClient(client.id)}
           >
             {client.name}
-          </Button>
+          </StyledButton>
         ))}
-      </Box>
-      {clientData && 
-      <> 
+        <>
+          <Checkbox checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} /> 
+          <Typography variant="body1" marginTop="10px" gutterBottom>
+            Modo de teste
+          </Typography>
+        </>
+      </StyledBox>
+      <>
         <Typography variant="h5" marginTop="20px" gutterBottom>
-          Você está em contato com o ChatBot Facil de {clientData?.name}
+            Você está em contato com o ChatBot Facil de {clientData?.name}
         </Typography>
-        <Box component="form" onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="Digite sua mensagem para iniciar a conversa"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            margin="normal"
-            rows="4"
-          />
-          <Button variant="contained" type="submit" fullWidth>
-            Enviar
-          </Button>
-        </Box>
-      </> 
-      }
+      </>
       <Box sx={{ mt: 3 }}>
         {responses.map((res, index) => (
-          <Typography key={index}>
-            <strong>Você:</strong> {res.user} <br />
-            <strong>Bot:</strong> {res.bot}
-          </Typography>
+          <StyledMessageBox key={index} alignEnd={!!res.user}>
+            {res.user && (
+              <UserMessage>
+                <Typography>
+                  <strong>Você:</strong> {res.user}
+                </Typography>
+              </UserMessage>
+            )}
+            {res.bot && (
+              <BotMessage>
+                <Typography>
+                  <strong>Bot:</strong> {res.bot}
+                </Typography>
+              </BotMessage>
+            )}
+          </StyledMessageBox>
         ))}
       </Box>
+      {clientData && (
+        <>
+          
+          <StyledForm component="form" onSubmit={handleSubmit} key="form">
+            <TextField
+              key="message"
+              fullWidth
+              label="Digite sua mensagem para iniciar a conversa"
+              value={message}
+              autoFocus="autoFocus"
+              onChange={(e) => setMessage(e.target.value)}
+              margin="normal"
+              rows="4"
+            />
+            <Button variant="contained" type="submit" fullWidth>
+              Enviar
+            </Button>
+          </StyledForm>
+        </>
+      )}
+      
     </Container>
   );
 };
